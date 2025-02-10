@@ -1,7 +1,10 @@
+from flask import Flask, jsonify
 import pymongo
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
+import os
 
+# MongoDB connection setup
 DB_USER = "sidharthee1905"
 DB_PASSWORD = "foodappserver"
 DB_NAME = "test"
@@ -10,10 +13,12 @@ COLLECTION_CARTS = "cleaned_carts"
 COLLECTION_MENUS = "menus"
 COLLECTION_SUGGESTED = "suggested_items"
 
-
 connection_string = f"mongodb+srv://{DB_USER}:{DB_PASSWORD}@cluster0.av3yj.mongodb.net/{DB_NAME}?retryWrites=true&w=majority"
 client = pymongo.MongoClient(connection_string)
 db = client[DB_NAME]
+
+# Flask setup
+app = Flask(__name__)
 
 def store_recommendations():
     session = db[COLLECTION_SESSION].find_one(sort=[("_id", -1)]) 
@@ -72,10 +77,19 @@ def store_recommendations():
     if recommended_items:
         db[COLLECTION_SUGGESTED].insert_many(recommended_items)
         print(f"Recommendations stored for {email}")
+        return recommended_items
     else:
         print("No recommendations generated")
+        return []
+
+@app.route('/recommend', methods=['GET'])
+def recommend():
+    try:
+        recommendations = store_recommendations()
+        return jsonify({"message": "Recommendations generated successfully", "recommendations": recommendations}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    print("Generating recommendations...")
-    store_recommendations()
-    
+    port = int(os.environ.get("PORT", 5000))  # Use Render's PORT or default to 5000
+    app.run(host="0.0.0.0", port=port)
